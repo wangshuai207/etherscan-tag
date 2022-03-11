@@ -25,14 +25,8 @@ func main() {
 	GetLabelMainCollector()
 }
 func GetLabelMainCollector() {
-	f, err := os.Create("etherscan-tag.csv")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer f.Close()
 	c := colly.NewCollector(
-		colly.CacheDir("./cache4"),
+		colly.CacheDir("./cache"),
 	)
 	// Before making a request print "Visiting ..."
 	c.OnRequest(func(req *colly.Request) {
@@ -56,15 +50,15 @@ func GetLabelMainCollector() {
 	c.SetRequestTimeout(30 * time.Second)
 	entity := AddressEntity{}
 	file := "address.json"
-	address := readAddress(file)
-	file2 := "address1.json"
-	address2 := readAddress(file2)
+	initAddress := readJson(file)
+	existfile := "address1.json"
+	existsAddress := readJson(existfile)
 	addressMap := make(map[string]int)
-	for i := 0; i < len(address); i++ {
-		addressMap[address[i]] = 0
+	for i := 0; i < len(initAddress); i++ {
+		addressMap[initAddress[i]] = 0
 	}
-	for i := 0; i < len(address2); i++ {
-		addressMap[address2[i]] = 1
+	for i := 0; i < len(existsAddress); i++ {
+		addressMap[existsAddress[i]] = 1
 	}
 	c.OnRequest(func(r *colly.Request) {
 		entity = AddressEntity{}
@@ -92,6 +86,7 @@ func GetLabelMainCollector() {
 		}
 		addressMap[entity.Address] = 1
 	})
+
 	//c.Visit(fmt.Sprintf("https://etherscan.io/address/%s", address[0]))
 	for k, v := range addressMap {
 		if v == 0 {
@@ -99,6 +94,21 @@ func GetLabelMainCollector() {
 		}
 	}
 	c.Wait()
+
+	var existsJson = AddressRequest{}
+	for k, v := range addressMap {
+		if v == 1 {
+			existsJson.AddressList = append(existsJson.AddressList, k)
+		}
+	}
+	writeJson(existsJson, "address1_1.json")
+
+	f, err := os.Create("etherscan-tag.csv")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer f.Close()
 	f.WriteString("\xEF\xBB\xBF") // 写入一个UTF-8 BOM
 
 	w := csv.NewWriter(f) //创建一个新的写入文件流
@@ -112,7 +122,7 @@ func GetLabelMainCollector() {
 	w.Flush()
 }
 
-func readAddress(filename string) []string {
+func readJson(filename string) []string {
 
 	filePtr, err := os.Open(filename)
 	if err != nil {
@@ -134,4 +144,24 @@ func readAddress(filename string) []string {
 		//fmt.Println(list)
 	}
 	return list.AddressList
+}
+
+func writeJson(list AddressRequest, filename string) {
+
+	filePtr, err := os.Create(filename)
+	if err != nil {
+		fmt.Println("Create file failed", err.Error())
+	}
+	defer filePtr.Close()
+
+	// 创建Json编码器
+	encoder := json.NewEncoder(filePtr)
+
+	err = encoder.Encode(list)
+	if err != nil {
+		fmt.Println("Encoder failed", err.Error())
+
+	} else {
+		fmt.Println("Encoder success")
+	}
 }
